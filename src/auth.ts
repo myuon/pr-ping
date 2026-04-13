@@ -33,7 +33,12 @@ async function createAppJwt(
     new TextEncoder().encode(signingInput)
   );
 
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  const signatureBytes = new Uint8Array(signature);
+  let signatureBinary = '';
+  for (let i = 0; i < signatureBytes.length; i++) {
+    signatureBinary += String.fromCharCode(signatureBytes[i]);
+  }
+  const signatureB64 = btoa(signatureBinary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");

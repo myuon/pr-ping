@@ -29,15 +29,17 @@ export async function handlePullRequestClosed(
   );
   const octokit = createOctokit(token);
 
-  for (const reminder of reminders) {
-    await createIssueComment(
-      octokit,
-      owner,
-      repo,
-      prNumber,
-      `@${reminder.user_login} Reminder: ${reminder.memo}`
-    );
-  }
+  await Promise.all(
+    reminders.map((reminder) =>
+      createIssueComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        `@${reminder.user_login} Reminder: ${reminder.memo}`
+      )
+    )
+  );
 
   await deleteRemindersByIssue(env.DB, repoFullName, prNumber);
 }
