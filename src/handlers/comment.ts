@@ -4,7 +4,8 @@ import { addReaction, createIssueComment, createOctokit } from "../github";
 import type { Env } from "../types";
 import { getInstallationToken } from "../auth";
 
-const REMIND_REGEX = /^\/remind\s+(.+)$/;
+const REMIND_REGEX = /^\/remind\s+(.+)$/m;
+const MAX_MEMO_LENGTH = 500;
 
 export async function handleIssueComment(
   payload: IssueCommentEvent,
@@ -16,7 +17,7 @@ export async function handleIssueComment(
   const match = body.match(REMIND_REGEX);
   if (!match) return;
 
-  const memo = match[1].trim();
+  const memo = match[1].trim().slice(0, MAX_MEMO_LENGTH);
   const repoFullName = payload.repository.full_name;
   const issueNumber = payload.issue.number;
   const userLogin = payload.comment.user.login;

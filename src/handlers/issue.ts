@@ -9,6 +9,8 @@ export async function handleIssueClosed(
   env: Env
 ): Promise<void> {
   if (payload.action !== "closed") return;
+  // Skip PRs — they are handled by the pull_request handler
+  if ((payload.issue as unknown as { pull_request?: unknown }).pull_request) return;
 
   const repoFullName = payload.repository.full_name;
   const issueNumber = payload.issue.number;
