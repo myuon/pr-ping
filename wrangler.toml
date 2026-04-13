@@ -1,0 +1,8 @@
+name = "pr-ping"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pr-ping-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
