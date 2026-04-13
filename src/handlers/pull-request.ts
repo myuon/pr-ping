@@ -1,8 +1,9 @@
 import type { PullRequestEvent } from "@octokit/webhooks-types";
-import { deleteRemindersByIssue, findRemindersByIssue } from "../db";
-import { createIssueComment, createOctokit } from "../github";
+import { findRemindersByIssue } from "../db";
+import { createOctokit } from "../github";
 import type { Env } from "../types";
 import { getInstallationToken } from "../auth";
+import { fireReminders } from "./fire-reminders";
 
 export async function handlePullRequestClosed(
   payload: PullRequestEvent,
@@ -29,17 +30,5 @@ export async function handlePullRequestClosed(
   );
   const octokit = createOctokit(token);
 
-  await Promise.all(
-    reminders.map((reminder) =>
-      createIssueComment(
-        octokit,
-        owner,
-        repo,
-        prNumber,
-        `@${reminder.user_login} Reminder: ${reminder.memo}`
-      )
-    )
-  );
-
-  await deleteRemindersByIssue(env.DB, repoFullName, prNumber);
+  await fireReminders(env.DB, octokit, owner, repo, prNumber, reminders);
 }

@@ -1,5 +1,39 @@
 import type { Reminder } from "./types";
 
+export async function isDeliveryProcessed(
+  db: D1Database,
+  deliveryId: string
+): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 FROM processed_deliveries WHERE delivery_id = ?`)
+    .bind(deliveryId)
+    .first();
+  return row !== null;
+}
+
+export async function markDeliveryProcessed(
+  db: D1Database,
+  deliveryId: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO processed_deliveries (delivery_id, processed_at) VALUES (?, ?)`
+    )
+    .bind(deliveryId, now)
+    .run();
+}
+
+export async function cleanOldDeliveries(
+  db: D1Database
+): Promise<void> {
+  await db
+    .prepare(
+      `DELETE FROM processed_deliveries WHERE processed_at < datetime('now', '-1 day')`
+    )
+    .run();
+}
+
 export async function upsertReminder(
   db: D1Database,
   repoFullName: string,
@@ -33,15 +67,12 @@ export async function findRemindersByIssue(
   return result.results;
 }
 
-export async function deleteRemindersByIssue(
+export async function deleteReminder(
   db: D1Database,
-  repoFullName: string,
-  issueNumber: number
+  id: number
 ): Promise<void> {
   await db
-    .prepare(
-      `DELETE FROM reminders WHERE repo_full_name = ? AND issue_number = ?`
-    )
-    .bind(repoFullName, issueNumber)
+    .prepare(`DELETE FROM reminders WHERE id = ?`)
+    .bind(id)
     .run();
 }

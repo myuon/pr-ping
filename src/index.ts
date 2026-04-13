@@ -3,6 +3,7 @@ import type { Env } from "./types";
 import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
+import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries } from "./db";
 
 type HonoEnv = {
   Bindings: Env;
@@ -44,6 +45,11 @@ app.post("/webhook", async (c) => {
     return c.json({ error: "Missing signature" }, 401);
   }
 
+  const deliveryId = c.req.header("x-github-delivery");
+  if (!deliveryId) {
+    return c.json({ error: "Missing delivery ID" }, 400);
+  }
+
   const rawBody = await c.req.text();
   const isValid = await verifySignature(
     c.env.GITHUB_WEBHOOK_SECRET,
@@ -52,6 +58,10 @@ app.post("/webhook", async (c) => {
   );
   if (!isValid) {
     return c.json({ error: "Invalid signature" }, 401);
+  }
+
+  if (await isDeliveryProcessed(c.env.DB, deliveryId)) {
+    return c.json({ ok: true, skipped: "duplicate delivery" });
   }
 
   const event = c.req.header("x-github-event");
@@ -72,10 +82,15 @@ app.post("/webhook", async (c) => {
         // Ignore unhandled events
         break;
     }
+
+    await markDeliveryProcessed(c.env.DB, deliveryId);
   } catch (error) {
     console.error("Error handling webhook:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
+
+  // Best-effort cleanup of old delivery records
+  c.executionCtx.waitUntil(cleanOldDeliveries(c.env.DB));
 
   return c.json({ ok: true });
 });
