@@ -13,9 +13,8 @@ export async function notifyUser(
 ): Promise<void> {
   const settings = await getNotificationSettings(db, userLogin);
 
-  // Default to GitHub comment only if no settings configured
+  // No account or no settings → skip notification
   if (settings.length === 0) {
-    await createIssueComment(octokit, owner, repo, issueNumber, message);
     return;
   }
 

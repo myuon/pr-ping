@@ -137,6 +137,12 @@ app.get("/callback", async (c) => {
   });
   const userData = (await userRes.json()) as { login: string };
 
+  // Create default notification settings on first login
+  const existing = await getNotificationSettings(c.env.DB, userData.login);
+  if (existing.length === 0) {
+    await upsertNotificationSetting(c.env.DB, userData.login, "github", "{}", 1);
+  }
+
   const cookie = await createSessionCookie(userData.login, c.env.SESSION_SECRET);
   return new Response(null, {
     status: 302,
