@@ -19,16 +19,24 @@ export async function notifyUser(
     return;
   }
 
+  let notified = false;
+
   for (const setting of settings) {
     if (!setting.enabled) continue;
 
     switch (setting.channel) {
       case "github": {
         await createIssueComment(octokit, owner, repo, issueNumber, message);
+        notified = true;
         break;
       }
       case "slack": {
-        const config = JSON.parse(setting.config) as { webhook_url?: string };
+        let config: { webhook_url?: string };
+        try {
+          config = JSON.parse(setting.config) as { webhook_url?: string };
+        } catch {
+          continue;
+        }
         if (config.webhook_url) {
           await sendSlackNotification(
             config.webhook_url,
@@ -37,10 +45,15 @@ export async function notifyUser(
             repo,
             issueNumber
           );
+          notified = true;
         }
         break;
       }
     }
+  }
+
+  if (!notified) {
+    throw new Error(`All notification channels failed for user ${userLogin}`);
   }
 }
 
@@ -63,7 +76,7 @@ async function sendSlackNotification(
   });
 
   if (!response.ok) {
-    console.error(
+    throw new Error(
       `Slack notification failed: ${response.status} ${response.statusText}`
     );
   }

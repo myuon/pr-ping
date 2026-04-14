@@ -172,7 +172,12 @@ app.get("/me", async (c) => {
   // Default: github enabled if no settings exist
   const githubEnabled = notificationSettings.length === 0 || (githubSetting?.enabled === 1);
   const slackEnabled = slackSetting?.enabled === 1;
-  const slackWebhookUrl = slackSetting ? (JSON.parse(slackSetting.config) as { webhook_url?: string }).webhook_url ?? "" : "";
+  let slackWebhookUrl = "";
+  if (slackSetting) {
+    try {
+      slackWebhookUrl = (JSON.parse(slackSetting.config) as { webhook_url?: string }).webhook_url ?? "";
+    } catch {}
+  }
 
   const savedParam = new URL(c.req.url).searchParams.get("saved");
 
@@ -286,9 +291,8 @@ app.post("/me/settings", async (c) => {
   const slackEnabled = formData["slack_enabled"] === "1" ? 1 : 0;
   const slackWebhookUrl = typeof formData["slack_webhook_url"] === "string" ? formData["slack_webhook_url"].trim() : "";
 
-  // Validate Slack webhook URL if Slack is enabled
-  if (slackEnabled && slackWebhookUrl) {
-    if (!slackWebhookUrl.startsWith("https://hooks.slack.com/")) {
+  if (slackEnabled) {
+    if (!slackWebhookUrl || !slackWebhookUrl.startsWith("https://hooks.slack.com/")) {
       return c.redirect("/me?saved=error");
     }
   }
