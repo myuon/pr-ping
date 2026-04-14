@@ -76,3 +76,16 @@ export async function deleteReminder(
     .bind(id)
     .run();
 }
+
+export async function findRemindersByUser(
+  db: D1Database,
+  userLogin: string
+): Promise<Reminder[]> {
+  const result = await db
+    .prepare(
+      `SELECT * FROM reminders WHERE user_login = ? ORDER BY updated_at DESC`
+    )
+    .bind(userLogin)
+    .all<Reminder>();
+  return result.results;
+}
