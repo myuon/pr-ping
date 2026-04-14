@@ -1,7 +1,7 @@
 import type { Octokit } from "@octokit/rest";
 import type { Reminder } from "../types";
 import { deleteReminder } from "../db";
-import { createIssueComment } from "../github";
+import { notifyUser } from "../notify";
 
 export async function fireReminders(
   db: D1Database,
@@ -12,12 +12,14 @@ export async function fireReminders(
   reminders: Reminder[]
 ): Promise<void> {
   for (const reminder of reminders) {
-    await createIssueComment(
+    await notifyUser(
+      db,
+      reminder.user_login,
+      `@${reminder.user_login} Reminder: ${reminder.memo}`,
       octokit,
       owner,
       repo,
-      issueNumber,
-      `@${reminder.user_login} Reminder: ${reminder.memo}`
+      issueNumber
     );
     await deleteReminder(db, reminder.id);
   }

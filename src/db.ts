@@ -1,4 +1,4 @@
-import type { Reminder } from "./types";
+import type { Reminder, NotificationSetting } from "./types";
 
 export async function isDeliveryProcessed(
   db: D1Database,
@@ -88,4 +88,36 @@ export async function findRemindersByUser(
     .bind(userLogin)
     .all<Reminder>();
   return result.results;
+}
+
+export async function getNotificationSettings(
+  db: D1Database,
+  userLogin: string
+): Promise<NotificationSetting[]> {
+  const result = await db
+    .prepare(
+      `SELECT * FROM notification_settings WHERE user_login = ?`
+    )
+    .bind(userLogin)
+    .all<NotificationSetting>();
+  return result.results;
+}
+
+export async function upsertNotificationSetting(
+  db: D1Database,
+  userLogin: string,
+  channel: string,
+  config: string,
+  enabled: number
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO notification_settings (user_login, channel, config, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (user_login, channel)
+       DO UPDATE SET config = excluded.config, enabled = excluded.enabled, updated_at = excluded.updated_at`
+    )
+    .bind(userLogin, channel, config, enabled, now, now)
+    .run();
 }

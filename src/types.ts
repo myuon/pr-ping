@@ -17,3 +17,13 @@ export interface Reminder {
   created_at: string;
   updated_at: string;
 }
+
+export interface NotificationSetting {
+  id: number;
+  user_login: string;
+  channel: string;
+  config: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
