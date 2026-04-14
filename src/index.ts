@@ -3,7 +3,7 @@ import type { Env } from "./types";
 import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
-import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser } from "./db";
+import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting } from "./db";
 import { createSessionCookie, getSessionUser, clearSessionCookie } from "./session";
 
 type HonoEnv = {
@@ -164,6 +164,17 @@ app.get("/me", async (c) => {
   }
 
   const reminders = await findRemindersByUser(c.env.DB, user);
+  const notificationSettings = await getNotificationSettings(c.env.DB, user);
+
+  const githubSetting = notificationSettings.find((s) => s.channel === "github");
+  const slackSetting = notificationSettings.find((s) => s.channel === "slack");
+
+  // Default: github enabled if no settings exist
+  const githubEnabled = notificationSettings.length === 0 || (githubSetting?.enabled === 1);
+  const slackEnabled = slackSetting?.enabled === 1;
+  const slackWebhookUrl = slackSetting ? (JSON.parse(slackSetting.config) as { webhook_url?: string }).webhook_url ?? "" : "";
+
+  const savedParam = new URL(c.req.url).searchParams.get("saved");
 
   const rows = reminders.length === 0
     ? `<tr><td colspan="4" style="text-align:center;color:#666;padding:2rem">No active reminders</td></tr>`
@@ -199,6 +210,17 @@ app.get("/me", async (c) => {
     tr:last-child td { border-bottom: none; }
     a { color: #0969da; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 1rem; }
+    .settings-form { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; padding: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer; }
+    .form-group input[type="text"] { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d0d7de; border-radius: 6px; font-size: 0.875rem; margin-top: 0.25rem; }
+    .form-group .hint { font-size: 0.75rem; color: #57606a; margin-top: 0.25rem; }
+    .form-actions { margin-top: 1rem; }
+    .form-actions button { background: #2da44e; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; cursor: pointer; font-weight: 500; }
+    .form-actions button:hover { background: #218838; }
+    .success-message { background: #dafbe1; color: #116329; border: 1px solid #aceebb; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.875rem; }
+    .error-message { background: #ffebe9; color: #82071e; border: 1px solid #ffcecb; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.875rem; }
   </style>
 </head>
 <body>
@@ -223,11 +245,64 @@ app.get("/me", async (c) => {
         ${rows}
       </tbody>
     </table>
+
+    <h2>Notification Settings</h2>
+    ${savedParam === "1" ? `<div class="success-message">Settings saved successfully.</div>` : ""}
+    ${savedParam === "error" ? `<div class="error-message">Invalid Slack webhook URL. It must start with https://hooks.slack.com/</div>` : ""}
+    <form class="settings-form" method="POST" action="/me/settings">
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="github_enabled" value="1" ${githubEnabled ? "checked" : ""}>
+          GitHub comment notification
+        </label>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="slack_enabled" value="1" ${slackEnabled ? "checked" : ""}>
+          Slack notification
+        </label>
+        <input type="text" name="slack_webhook_url" value="${escapeHtml(slackWebhookUrl)}" placeholder="https://hooks.slack.com/services/...">
+        <div class="hint">Enter your Slack Incoming Webhook URL</div>
+      </div>
+      <div class="form-actions">
+        <button type="submit">Save settings</button>
+      </div>
+    </form>
   </div>
 </body>
 </html>`;
 
   return c.html(html);
+});
+
+app.post("/me/settings", async (c) => {
+  const user = await getSessionUser(c.req.header("cookie"), c.env.SESSION_SECRET);
+  if (!user) {
+    return c.redirect("/login");
+  }
+
+  const formData = await c.req.parseBody();
+  const githubEnabled = formData["github_enabled"] === "1" ? 1 : 0;
+  const slackEnabled = formData["slack_enabled"] === "1" ? 1 : 0;
+  const slackWebhookUrl = typeof formData["slack_webhook_url"] === "string" ? formData["slack_webhook_url"].trim() : "";
+
+  // Validate Slack webhook URL if Slack is enabled
+  if (slackEnabled && slackWebhookUrl) {
+    if (!slackWebhookUrl.startsWith("https://hooks.slack.com/")) {
+      return c.redirect("/me?saved=error");
+    }
+  }
+
+  await upsertNotificationSetting(c.env.DB, user, "github", "{}", githubEnabled);
+  await upsertNotificationSetting(
+    c.env.DB,
+    user,
+    "slack",
+    JSON.stringify({ webhook_url: slackWebhookUrl }),
+    slackEnabled
+  );
+
+  return c.redirect("/me?saved=1");
 });
 
 app.get("/", (c) => {
