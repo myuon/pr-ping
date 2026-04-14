@@ -1,6 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 import type { Reminder } from "../types";
-import { deleteReminder } from "../db";
+import { markReminderNotified } from "../db";
 import { notifyUser } from "../notify";
 
 export async function fireReminders(
@@ -21,6 +21,6 @@ export async function fireReminders(
       repo,
       issueNumber
     );
-    await deleteReminder(db, reminder.id);
+    await markReminderNotified(db, reminder.id);
   }
 }

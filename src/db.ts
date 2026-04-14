@@ -1,4 +1,4 @@
-import type { Reminder, NotificationSetting } from "./types";
+import type { Reminder, NotificationSetting, TriggerType } from "./types";
 
 export async function isDeliveryProcessed(
   db: D1Database,
@@ -39,17 +39,18 @@ export async function upsertReminder(
   repoFullName: string,
   issueNumber: number,
   userLogin: string,
-  memo: string
+  memo: string,
+  triggerType: TriggerType
 ): Promise<void> {
   const now = new Date().toISOString();
   await db
     .prepare(
-      `INSERT INTO reminders (repo_full_name, issue_number, user_login, memo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO reminders (repo_full_name, issue_number, user_login, memo, status, trigger_type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
        ON CONFLICT (repo_full_name, issue_number, user_login)
-       DO UPDATE SET memo = excluded.memo, updated_at = excluded.updated_at`
+       DO UPDATE SET memo = excluded.memo, trigger_type = excluded.trigger_type, status = 'pending', updated_at = excluded.updated_at`
     )
-    .bind(repoFullName, issueNumber, userLogin, memo, now, now)
+    .bind(repoFullName, issueNumber, userLogin, memo, triggerType, now, now)
     .run();
 }
 
@@ -60,7 +61,7 @@ export async function findRemindersByIssue(
 ): Promise<Reminder[]> {
   const result = await db
     .prepare(
-      `SELECT * FROM reminders WHERE repo_full_name = ? AND issue_number = ?`
+      `SELECT * FROM reminders WHERE repo_full_name = ? AND issue_number = ? AND status = 'pending'`
     )
     .bind(repoFullName, issueNumber)
     .all<Reminder>();
@@ -74,6 +75,17 @@ export async function deleteReminder(
   await db
     .prepare(`DELETE FROM reminders WHERE id = ?`)
     .bind(id)
+    .run();
+}
+
+export async function markReminderNotified(
+  db: D1Database,
+  id: number
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db
+    .prepare(`UPDATE reminders SET status = 'notified', updated_at = ? WHERE id = ?`)
+    .bind(now, id)
     .run();
 }
 

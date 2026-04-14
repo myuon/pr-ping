@@ -8,12 +8,17 @@ export interface Env {
   SESSION_SECRET: string;
 }
 
+export type ReminderStatus = "pending" | "notified";
+export type TriggerType = "issue" | "pull_request";
+
 export interface Reminder {
   id: number;
   repo_full_name: string;
   issue_number: number;
   user_login: string;
   memo: string;
+  status: ReminderStatus;
+  trigger_type: TriggerType;
   created_at: string;
   updated_at: string;
 }
