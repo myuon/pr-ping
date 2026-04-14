@@ -1,0 +1,26 @@
+{
+  "skills": {
+    "architecture-decision-records": {
+      "install": true,
+      "reason": "condition: always"
+    },
+    "agent-browser": {
+      "install": false,
+      "reason": "バックエンド専用プロジェクト（Cloudflare Workers）。画面を持つ Web アプリケーションではない"
+    }
+  },
+  "profiles": {
+    "react": {
+      "apply": false,
+      "reason": "React を使っていない（依存に react なし）"
+    },
+    "react-router": {
+      "apply": false,
+      "reason": "React Router を使っていない"
+    },
+    "expo": {
+      "apply": false,
+      "reason": "Expo / React Native を使っていない"
+    }
+  }
+}

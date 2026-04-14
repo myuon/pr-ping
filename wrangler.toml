@@ -5,4 +5,4 @@ compatibility_date = "2025-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "pr-ping-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "a0efa26e-ab4f-4d19-93f6-e2426df27474"
