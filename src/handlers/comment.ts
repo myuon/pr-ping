@@ -1,7 +1,7 @@
 import type { IssueCommentEvent } from "@octokit/webhooks-types";
 import { upsertReminder } from "../db";
 import { addReaction, createIssueComment, createOctokit } from "../github";
-import type { Env } from "../types";
+import type { Env, TriggerType } from "../types";
 import { getInstallationToken } from "../auth";
 
 const REMIND_REGEX = /^\/remind\s+(.+)$/m;
@@ -23,6 +23,7 @@ export async function handleIssueComment(
   const userLogin = payload.comment.user.login;
   const commentId = payload.comment.id;
   const [owner, repo] = repoFullName.split("/");
+  const triggerType: TriggerType = payload.issue.pull_request ? "pull_request" : "issue";
 
   const token = await getInstallationToken(
     env.GITHUB_APP_ID,
@@ -32,7 +33,7 @@ export async function handleIssueComment(
   const octokit = createOctokit(token);
 
   try {
-    await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo);
+    await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo, triggerType);
     await addReaction(octokit, owner, repo, commentId);
   } catch (error) {
     const message =
