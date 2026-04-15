@@ -160,3 +160,22 @@ export async function upsertNotificationSetting(
     .bind(userLogin, channel, config, enabled, now, now)
     .run();
 }
+
+export async function getReleaseBranch(
+  db: D1Database,
+  userLogin: string
+): Promise<string> {
+  const result = await db
+    .prepare(
+      `SELECT config FROM notification_settings WHERE user_login = ? AND channel = 'release_trigger'`
+    )
+    .bind(userLogin)
+    .first<{ config: string }>();
+  if (result) {
+    try {
+      const config = JSON.parse(result.config) as { branch?: string };
+      if (config.branch) return config.branch;
+    } catch {}
+  }
+  return "main";
+}

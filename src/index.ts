@@ -3,8 +3,8 @@ import type { Env } from "./types";
 import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
-import { handleReleasePublished } from "./handlers/release";
-import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting } from "./db";
+import { handlePush } from "./handlers/release";
+import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting, getReleaseBranch } from "./db";
 import { createSessionCookie, getSessionUser, clearSessionCookie } from "./session";
 
 type HonoEnv = {
@@ -80,8 +80,8 @@ app.post("/webhook", async (c) => {
       case "pull_request":
         await handlePullRequestClosed(payload, c.env);
         break;
-      case "release":
-        await handleReleasePublished(payload, c.env);
+      case "push":
+        await handlePush(payload, c.env);
         break;
       default:
         // Ignore unhandled events
@@ -190,6 +190,8 @@ app.get("/me", async (c) => {
     } catch {}
   }
 
+  const releaseBranch = await getReleaseBranch(c.env.DB, user);
+
   const savedParam = new URL(c.req.url).searchParams.get("saved");
 
   const statusLabel = (s: string) => s === "notified"
@@ -198,7 +200,7 @@ app.get("/me", async (c) => {
 
   const triggerLabel = (t: string) => {
     if (t === "pull_request") return `<span style="font-size:0.75rem">PR merge</span>`;
-    if (t === "release") return `<span style="font-size:0.75rem">Release</span>`;
+    if (t === "release") return `<span style="font-size:0.75rem">Branch push</span>`;
     return `<span style="font-size:0.75rem">Issue close</span>`;
   };
 
@@ -284,6 +286,7 @@ app.get("/me", async (c) => {
     <h2>Notification Settings</h2>
     ${savedParam === "1" ? `<div class="success-message">Settings saved successfully.</div>` : ""}
     ${savedParam === "error" ? `<div class="error-message">Invalid Slack webhook URL. It must start with https://hooks.slack.com/</div>` : ""}
+    ${savedParam === "branch_error" ? `<div class="error-message">Invalid branch name. It must be non-empty, contain no spaces, and be under 200 characters.</div>` : ""}
     <form class="settings-form" method="POST" action="/me/settings">
       <div class="form-group">
         <label>
@@ -298,6 +301,11 @@ app.get("/me", async (c) => {
         </label>
         <input type="text" name="slack_webhook_url" value="${escapeHtml(slackWebhookUrl)}" placeholder="https://hooks.slack.com/services/...">
         <div class="hint">Enter your Slack Incoming Webhook URL</div>
+      </div>
+      <div class="form-group">
+        <label>Release trigger branch</label>
+        <input type="text" name="release_branch" value="${escapeHtml(releaseBranch)}" placeholder="main">
+        <div class="hint">Branch name that triggers /release reminders when commits are pushed (default: main)</div>
       </div>
       <div class="form-actions">
         <button type="submit">Save settings</button>
@@ -321,10 +329,17 @@ app.post("/me/settings", async (c) => {
   const slackEnabled = formData["slack_enabled"] === "1" ? 1 : 0;
   const slackWebhookUrl = typeof formData["slack_webhook_url"] === "string" ? formData["slack_webhook_url"].trim() : "";
 
+  const releaseBranch = typeof formData["release_branch"] === "string" ? formData["release_branch"].trim() : "main";
+
   if (slackEnabled) {
     if (!slackWebhookUrl || !slackWebhookUrl.startsWith("https://hooks.slack.com/")) {
       return c.redirect("/me?saved=error");
     }
+  }
+
+  // Validate release branch name
+  if (!releaseBranch || releaseBranch.includes(" ") || releaseBranch.length > 200) {
+    return c.redirect("/me?saved=branch_error");
   }
 
   await upsertNotificationSetting(c.env.DB, user, "github", "{}", githubEnabled);
@@ -334,6 +349,13 @@ app.post("/me/settings", async (c) => {
     "slack",
     JSON.stringify({ webhook_url: slackWebhookUrl }),
     slackEnabled
+  );
+  await upsertNotificationSetting(
+    c.env.DB,
+    user,
+    "release_trigger",
+    JSON.stringify({ branch: releaseBranch }),
+    1
   );
 
   return c.redirect("/me?saved=1");
