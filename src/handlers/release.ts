@@ -1,19 +1,23 @@
-import type { ReleaseEvent } from "@octokit/webhooks-types";
-import { findReleaseReminders } from "../db";
+import type { PushEvent } from "@octokit/webhooks-types";
+import { findReleaseReminders, getReleaseBranch } from "../db";
 import { createOctokit } from "../github";
 import type { Env } from "../types";
 import { getInstallationToken } from "../auth";
 import { fireReminders } from "./fire-reminders";
 
-export async function handleReleasePublished(
-  payload: ReleaseEvent,
+export async function handlePush(
+  payload: PushEvent,
   env: Env
 ): Promise<void> {
-  if (payload.action !== "published") return;
+  // Skip new branch creation (before is all zeros)
+  if (payload.before === "0000000000000000000000000000000000000000") return;
+
+  // Skip force pushes
+  if (payload.forced) return;
 
   const repoFullName = payload.repository.full_name;
   const [owner, repo] = repoFullName.split("/");
-  const newTag = payload.release.tag_name;
+  const pushedRef = payload.ref; // e.g. "refs/heads/main"
 
   const token = await getInstallationToken(
     env.GITHUB_APP_ID,
@@ -22,35 +26,14 @@ export async function handleReleasePublished(
   );
   const octokit = createOctokit(token);
 
-  // Find the previous release to compare against
-  const { data: releases } = await octokit.repos.listReleases({
-    owner,
-    repo,
-    per_page: 100,
-  });
-
-  // Releases are returned newest first; find the one right after the current
-  const currentIndex = releases.findIndex(
-    (r) => r.tag_name === newTag
-  );
-  if (currentIndex === -1) return;
-
-  const prevRelease = releases[currentIndex + 1];
-  if (!prevRelease) {
-    // No previous release — skip since we can't determine which PRs are new
-    return;
-  }
-
-  const prevTag = prevRelease.tag_name;
-
-  // Compare commits between previous and current release
+  // Compare commits between before and after
   const { data: comparison } = await octokit.repos.compareCommitsWithBasehead({
     owner,
     repo,
-    basehead: `${prevTag}...${newTag}`,
+    basehead: `${payload.before}...${payload.after}`,
   });
 
-  // Collect unique PR numbers from all commits in this release
+  // Collect unique PR numbers from all commits in this push
   const prNumbers = new Set<number>();
   for (const commit of comparison.commits) {
     const { data: prs } =
@@ -73,8 +56,12 @@ export async function handleReleasePublished(
   );
   if (reminders.length === 0) return;
 
-  // Group reminders by PR number and fire them
+  // Filter reminders: only fire for users whose configured release branch matches the pushed branch
   for (const reminder of reminders) {
+    const userBranch = await getReleaseBranch(env.DB, reminder.user_login);
+    const expectedRef = `refs/heads/${userBranch}`;
+    if (pushedRef !== expectedRef) continue;
+
     await fireReminders(
       env.DB,
       octokit,
