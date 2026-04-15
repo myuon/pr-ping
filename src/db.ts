@@ -89,6 +89,23 @@ export async function markReminderNotified(
     .run();
 }
 
+export async function findReleaseReminders(
+  db: D1Database,
+  repoFullName: string,
+  prNumbers: number[]
+): Promise<Reminder[]> {
+  if (prNumbers.length === 0) return [];
+
+  const placeholders = prNumbers.map(() => "?").join(", ");
+  const result = await db
+    .prepare(
+      `SELECT * FROM reminders WHERE repo_full_name = ? AND issue_number IN (${placeholders}) AND status = 'pending' AND trigger_type = 'release'`
+    )
+    .bind(repoFullName, ...prNumbers)
+    .all<Reminder>();
+  return result.results;
+}
+
 export async function findRemindersByUser(
   db: D1Database,
   userLogin: string,
