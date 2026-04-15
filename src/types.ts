@@ -28,6 +28,7 @@ export interface NotificationSetting {
   id: number;
   user_login: string;
   channel: string;
+  org: string;
   config: string;
   enabled: number;
   created_at: string;

@@ -132,11 +132,25 @@ export async function findRemindersByUser(
 
 export async function getNotificationSettings(
   db: D1Database,
-  userLogin: string
+  userLogin: string,
+  org?: string
 ): Promise<NotificationSetting[]> {
+  if (org) {
+    // Try org-specific settings first
+    const orgResult = await db
+      .prepare(
+        `SELECT * FROM notification_settings WHERE user_login = ? AND org = ?`
+      )
+      .bind(userLogin, org)
+      .all<NotificationSetting>();
+    if (orgResult.results.length > 0) {
+      return orgResult.results;
+    }
+  }
+  // Fall back to default (org = '')
   const result = await db
     .prepare(
-      `SELECT * FROM notification_settings WHERE user_login = ?`
+      `SELECT * FROM notification_settings WHERE user_login = ? AND org = ''`
     )
     .bind(userLogin)
     .all<NotificationSetting>();
@@ -148,27 +162,43 @@ export async function upsertNotificationSetting(
   userLogin: string,
   channel: string,
   config: string,
-  enabled: number
+  enabled: number,
+  org: string = ""
 ): Promise<void> {
   const now = new Date().toISOString();
   await db
     .prepare(
-      `INSERT INTO notification_settings (user_login, channel, config, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (user_login, channel)
+      `INSERT INTO notification_settings (user_login, channel, org, config, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (user_login, channel, org)
        DO UPDATE SET config = excluded.config, enabled = excluded.enabled, updated_at = excluded.updated_at`
     )
-    .bind(userLogin, channel, config, enabled, now, now)
+    .bind(userLogin, channel, org, config, enabled, now, now)
     .run();
 }
 
 export async function getReleaseBranch(
   db: D1Database,
-  userLogin: string
+  userLogin: string,
+  org?: string
 ): Promise<string> {
+  if (org) {
+    const orgResult = await db
+      .prepare(
+        `SELECT config FROM notification_settings WHERE user_login = ? AND channel = 'release_trigger' AND org = ?`
+      )
+      .bind(userLogin, org)
+      .first<{ config: string }>();
+    if (orgResult) {
+      try {
+        const config = JSON.parse(orgResult.config) as { branch?: string };
+        if (config.branch) return config.branch;
+      } catch {}
+    }
+  }
   const result = await db
     .prepare(
-      `SELECT config FROM notification_settings WHERE user_login = ? AND channel = 'release_trigger'`
+      `SELECT config FROM notification_settings WHERE user_login = ? AND channel = 'release_trigger' AND org = ''`
     )
     .bind(userLogin)
     .first<{ config: string }>();
@@ -179,4 +209,17 @@ export async function getReleaseBranch(
     } catch {}
   }
   return "main";
+}
+
+export async function getUserOrgs(
+  db: D1Database,
+  userLogin: string
+): Promise<string[]> {
+  const result = await db
+    .prepare(
+      `SELECT DISTINCT SUBSTR(repo_full_name, 1, INSTR(repo_full_name, '/') - 1) AS org FROM reminders WHERE user_login = ? ORDER BY org`
+    )
+    .bind(userLogin)
+    .all<{ org: string }>();
+  return result.results.map((r) => r.org).filter((o) => o !== "");
 }
