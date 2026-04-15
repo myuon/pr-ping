@@ -21,9 +21,10 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_login TEXT NOT NULL,
   channel TEXT NOT NULL,
+  org TEXT NOT NULL DEFAULT '',
   config TEXT NOT NULL DEFAULT '{}',
   enabled INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  UNIQUE (user_login, channel)
+  UNIQUE (user_login, channel, org)
 );

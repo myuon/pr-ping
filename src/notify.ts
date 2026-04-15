@@ -11,7 +11,7 @@ export async function notifyUser(
   repo: string,
   issueNumber: number
 ): Promise<void> {
-  const settings = await getNotificationSettings(db, userLogin);
+  const settings = await getNotificationSettings(db, userLogin, owner);
 
   // No account or no settings → skip notification
   if (settings.length === 0) {

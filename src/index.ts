@@ -4,7 +4,7 @@ import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
 import { handlePush } from "./handlers/release";
-import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting, getReleaseBranch } from "./db";
+import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting, getReleaseBranch, getUserOrgs } from "./db";
 import { createSessionCookie, getSessionUser, clearSessionCookie } from "./session";
 
 type HonoEnv = {
@@ -173,9 +173,12 @@ app.get("/me", async (c) => {
     return c.redirect("/login");
   }
 
-  const showAll = new URL(c.req.url).searchParams.get("show") === "all";
+  const url = new URL(c.req.url);
+  const showAll = url.searchParams.get("show") === "all";
+  const selectedOrg = url.searchParams.get("org") ?? "";
   const reminders = await findRemindersByUser(c.env.DB, user, showAll ? undefined : "pending");
-  const notificationSettings = await getNotificationSettings(c.env.DB, user);
+  const orgs = await getUserOrgs(c.env.DB, user);
+  const notificationSettings = await getNotificationSettings(c.env.DB, user, selectedOrg || undefined);
 
   const githubSetting = notificationSettings.find((s) => s.channel === "github");
   const slackSetting = notificationSettings.find((s) => s.channel === "slack");
@@ -193,9 +196,9 @@ app.get("/me", async (c) => {
     } catch {}
   }
 
-  const releaseBranch = await getReleaseBranch(c.env.DB, user);
+  const releaseBranch = await getReleaseBranch(c.env.DB, user, selectedOrg || undefined);
 
-  const savedParam = new URL(c.req.url).searchParams.get("saved");
+  const savedParam = url.searchParams.get("saved");
 
   const statusLabel = (s: string) => s === "notified"
     ? `<span style="color:#1a7f37;background:#dafbe1;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Notified</span>`
@@ -281,10 +284,16 @@ app.get("/me", async (c) => {
     </table>
 
     <h2>Notification Settings</h2>
+    <div style="margin-bottom:1rem;font-size:0.875rem">
+      <span style="margin-right:0.5rem">Org:</span>
+      <a href="/me${showAll ? '?show=all' : ''}" style="margin-right:0.5rem;${selectedOrg === '' ? 'font-weight:bold' : ''}">Default</a>
+      ${orgs.map((o) => `<a href="/me?org=${encodeURIComponent(o)}${showAll ? '&show=all' : ''}" style="margin-right:0.5rem;${selectedOrg === o ? 'font-weight:bold' : ''}">${escapeHtml(o)}</a>`).join("")}
+    </div>
     ${savedParam === "1" ? `<div class="success-message">Settings saved successfully.</div>` : ""}
     ${savedParam === "error" ? `<div class="error-message">Invalid Slack webhook URL. It must start with https://hooks.slack.com/</div>` : ""}
     ${savedParam === "branch_error" ? `<div class="error-message">Invalid branch name. It must be non-empty, contain no spaces, and be under 200 characters.</div>` : ""}
     <form class="settings-form" method="POST" action="/me/settings">
+      <input type="hidden" name="org" value="${escapeHtml(selectedOrg)}">
       <div class="form-group">
         <label>
           <input type="checkbox" name="github_enabled" value="1" ${githubEnabled ? "checked" : ""}>
@@ -325,6 +334,7 @@ app.post("/me/settings", async (c) => {
   }
 
   const formData = await c.req.parseBody();
+  const org = typeof formData["org"] === "string" ? formData["org"].trim() : "";
   const githubEnabled = formData["github_enabled"] === "1" ? 1 : 0;
   const slackEnabled = formData["slack_enabled"] === "1" ? 1 : 0;
   const slackWebhookUrl = typeof formData["slack_webhook_url"] === "string" ? formData["slack_webhook_url"].trim() : "";
@@ -332,34 +342,38 @@ app.post("/me/settings", async (c) => {
 
   const releaseBranch = typeof formData["release_branch"] === "string" ? formData["release_branch"].trim() : "main";
 
+  const orgParam = org ? `&org=${encodeURIComponent(org)}` : "";
+
   if (slackEnabled) {
     if (!slackWebhookUrl || !slackWebhookUrl.startsWith("https://hooks.slack.com/")) {
-      return c.redirect("/me?saved=error");
+      return c.redirect(`/me?saved=error${orgParam}`);
     }
   }
 
   // Validate release branch name
   if (!releaseBranch || releaseBranch.includes(" ") || releaseBranch.length > 200) {
-    return c.redirect("/me?saved=branch_error");
+    return c.redirect(`/me?saved=branch_error${orgParam}`);
   }
 
-  await upsertNotificationSetting(c.env.DB, user, "github", "{}", githubEnabled);
+  await upsertNotificationSetting(c.env.DB, user, "github", "{}", githubEnabled, org);
   await upsertNotificationSetting(
     c.env.DB,
     user,
     "slack",
     JSON.stringify({ webhook_url: slackWebhookUrl, mention: slackMention || undefined }),
-    slackEnabled
+    slackEnabled,
+    org
   );
   await upsertNotificationSetting(
     c.env.DB,
     user,
     "release_trigger",
     JSON.stringify({ branch: releaseBranch }),
-    1
+    1,
+    org
   );
 
-  return c.redirect("/me?saved=1");
+  return c.redirect(`/me?saved=1${orgParam}`);
 });
 
 app.get("/", (c) => {
