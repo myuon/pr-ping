@@ -184,9 +184,12 @@ app.get("/me", async (c) => {
   const githubEnabled = notificationSettings.length === 0 || (githubSetting?.enabled === 1);
   const slackEnabled = slackSetting?.enabled === 1;
   let slackWebhookUrl = "";
+  let slackMention = "";
   if (slackSetting) {
     try {
-      slackWebhookUrl = (JSON.parse(slackSetting.config) as { webhook_url?: string }).webhook_url ?? "";
+      const slackConfig = JSON.parse(slackSetting.config) as { webhook_url?: string; mention?: string };
+      slackWebhookUrl = slackConfig.webhook_url ?? "";
+      slackMention = slackConfig.mention ?? "";
     } catch {}
   }
 
@@ -301,6 +304,9 @@ app.get("/me", async (c) => {
         </label>
         <input type="text" name="slack_webhook_url" value="${escapeHtml(slackWebhookUrl)}" placeholder="https://hooks.slack.com/services/...">
         <div class="hint">Enter your Slack Incoming Webhook URL</div>
+        <label style="margin-top:0.5rem">Slack mention</label>
+        <input type="text" name="slack_mention" value="${escapeHtml(slackMention)}" placeholder="<@U12345678>">
+        <div class="hint">Slack user ID for mentions (e.g. &lt;@U12345678&gt;). Leave empty to use GitHub username.</div>
       </div>
       <div class="form-group">
         <label>Release trigger branch</label>
@@ -328,6 +334,7 @@ app.post("/me/settings", async (c) => {
   const githubEnabled = formData["github_enabled"] === "1" ? 1 : 0;
   const slackEnabled = formData["slack_enabled"] === "1" ? 1 : 0;
   const slackWebhookUrl = typeof formData["slack_webhook_url"] === "string" ? formData["slack_webhook_url"].trim() : "";
+  const slackMention = typeof formData["slack_mention"] === "string" ? formData["slack_mention"].trim() : "";
 
   const releaseBranch = typeof formData["release_branch"] === "string" ? formData["release_branch"].trim() : "main";
 
@@ -347,7 +354,7 @@ app.post("/me/settings", async (c) => {
     c.env.DB,
     user,
     "slack",
-    JSON.stringify({ webhook_url: slackWebhookUrl }),
+    JSON.stringify({ webhook_url: slackWebhookUrl, mention: slackMention || undefined }),
     slackEnabled
   );
   await upsertNotificationSetting(

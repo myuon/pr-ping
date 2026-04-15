@@ -30,16 +30,20 @@ export async function notifyUser(
         break;
       }
       case "slack": {
-        let config: { webhook_url?: string };
+        let config: { webhook_url?: string; mention?: string };
         try {
-          config = JSON.parse(setting.config) as { webhook_url?: string };
+          config = JSON.parse(setting.config) as { webhook_url?: string; mention?: string };
         } catch {
           continue;
         }
         if (config.webhook_url) {
+          let slackMessage = message;
+          if (config.mention) {
+            slackMessage = slackMessage.replace(`@${userLogin}`, config.mention);
+          }
           await sendSlackNotification(
             config.webhook_url,
-            message,
+            slackMessage,
             owner,
             repo,
             issueNumber
