@@ -91,8 +91,18 @@ export async function markReminderNotified(
 
 export async function findRemindersByUser(
   db: D1Database,
-  userLogin: string
+  userLogin: string,
+  statusFilter?: "pending"
 ): Promise<Reminder[]> {
+  if (statusFilter === "pending") {
+    const result = await db
+      .prepare(
+        `SELECT * FROM reminders WHERE user_login = ? AND status = 'pending' ORDER BY updated_at DESC`
+      )
+      .bind(userLogin)
+      .all<Reminder>();
+    return result.results;
+  }
   const result = await db
     .prepare(
       `SELECT * FROM reminders WHERE user_login = ? ORDER BY updated_at DESC`

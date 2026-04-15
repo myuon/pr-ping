@@ -169,7 +169,8 @@ app.get("/me", async (c) => {
     return c.redirect("/login");
   }
 
-  const reminders = await findRemindersByUser(c.env.DB, user);
+  const showAll = new URL(c.req.url).searchParams.get("show") === "all";
+  const reminders = await findRemindersByUser(c.env.DB, user, showAll ? undefined : "pending");
   const notificationSettings = await getNotificationSettings(c.env.DB, user);
 
   const githubSetting = notificationSettings.find((s) => s.channel === "github");
@@ -196,7 +197,7 @@ app.get("/me", async (c) => {
     : `<span style="font-size:0.75rem">Issue close</span>`;
 
   const rows = reminders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">No active reminders</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
     : reminders
         .map(
           (r) => `<tr>
@@ -253,6 +254,11 @@ app.get("/me", async (c) => {
         <a href="/logout">Logout</a>
       </div>
     </header>
+    <div style="margin-bottom:0.75rem;font-size:0.875rem">
+      ${showAll
+        ? `Showing all reminders. <a href="/me">Show pending only</a>`
+        : `Showing pending only. <a href="/me?show=all">Show all</a>`}
+    </div>
     <table>
       <thead>
         <tr>
