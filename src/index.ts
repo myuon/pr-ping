@@ -3,6 +3,7 @@ import type { Env } from "./types";
 import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
+import { handleReleasePublished } from "./handlers/release";
 import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting } from "./db";
 import { createSessionCookie, getSessionUser, clearSessionCookie } from "./session";
 
@@ -78,6 +79,9 @@ app.post("/webhook", async (c) => {
         break;
       case "pull_request":
         await handlePullRequestClosed(payload, c.env);
+        break;
+      case "release":
+        await handleReleasePublished(payload, c.env);
         break;
       default:
         // Ignore unhandled events
@@ -192,9 +196,11 @@ app.get("/me", async (c) => {
     ? `<span style="color:#1a7f37;background:#dafbe1;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Notified</span>`
     : `<span style="color:#9a6700;background:#fff8c5;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Pending</span>`;
 
-  const triggerLabel = (t: string) => t === "pull_request"
-    ? `<span style="font-size:0.75rem">PR merge</span>`
-    : `<span style="font-size:0.75rem">Issue close</span>`;
+  const triggerLabel = (t: string) => {
+    if (t === "pull_request") return `<span style="font-size:0.75rem">PR merge</span>`;
+    if (t === "release") return `<span style="font-size:0.75rem">Release</span>`;
+    return `<span style="font-size:0.75rem">Issue close</span>`;
+  };
 
   const rows = reminders.length === 0
     ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`

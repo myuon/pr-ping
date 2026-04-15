@@ -9,7 +9,7 @@ export interface Env {
 }
 
 export type ReminderStatus = "pending" | "notified";
-export type TriggerType = "issue" | "pull_request";
+export type TriggerType = "issue" | "pull_request" | "release";
 
 export interface Reminder {
   id: number;
