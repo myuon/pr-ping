@@ -204,14 +204,20 @@ app.get("/me", async (c) => {
     return `<span style="font-size:0.75rem">Issue close</span>`;
   };
 
+  const commandLabel = (t: string) => {
+    if (t === "release") return `<span style="font-size:0.75rem">/release</span>`;
+    return `<span style="font-size:0.75rem">/remind</span>`;
+  };
+
   const rows = reminders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
     : reminders
         .map(
           (r) => `<tr>
             <td><a href="https://github.com/${r.repo_full_name}/issues/${r.issue_number}">${r.repo_full_name}#${r.issue_number}</a></td>
             <td>${escapeHtml(r.memo)}</td>
             <td>${statusLabel(r.status)}</td>
+            <td>${commandLabel(r.trigger_type)}</td>
             <td>${triggerLabel(r.trigger_type)}</td>
             <td>${new Date(r.created_at).toLocaleDateString()}</td>
             <td>${new Date(r.updated_at).toLocaleDateString()}</td>
@@ -273,6 +279,7 @@ app.get("/me", async (c) => {
           <th>Issue / PR</th>
           <th>Memo</th>
           <th>Status</th>
+          <th>Command</th>
           <th>Trigger</th>
           <th>Created</th>
           <th>Updated</th>
