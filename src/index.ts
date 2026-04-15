@@ -198,12 +198,6 @@ app.get("/me", async (c) => {
     ? `<span style="color:#1a7f37;background:#dafbe1;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Notified</span>`
     : `<span style="color:#9a6700;background:#fff8c5;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Pending</span>`;
 
-  const triggerLabel = (t: string) => {
-    if (t === "pull_request") return `<span style="font-size:0.75rem">PR merge</span>`;
-    if (t === "release") return `<span style="font-size:0.75rem">Branch push</span>`;
-    return `<span style="font-size:0.75rem">Issue close</span>`;
-  };
-
   const rows = reminders.length === 0
     ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
     : reminders
@@ -212,7 +206,7 @@ app.get("/me", async (c) => {
             <td><a href="https://github.com/${r.repo_full_name}/issues/${r.issue_number}">${r.repo_full_name}#${r.issue_number}</a></td>
             <td>${escapeHtml(r.memo)}</td>
             <td>${statusLabel(r.status)}</td>
-            <td>${triggerLabel(r.trigger_type)}</td>
+            <td><span style="font-size:0.75rem">${escapeHtml(r.command)}</span></td>
             <td>${new Date(r.created_at).toLocaleDateString()}</td>
             <td>${new Date(r.updated_at).toLocaleDateString()}</td>
           </tr>`
@@ -273,7 +267,7 @@ app.get("/me", async (c) => {
           <th>Issue / PR</th>
           <th>Memo</th>
           <th>Status</th>
-          <th>Trigger</th>
+          <th>Command</th>
           <th>Created</th>
           <th>Updated</th>
         </tr>

@@ -40,17 +40,18 @@ export async function upsertReminder(
   issueNumber: number,
   userLogin: string,
   memo: string,
-  triggerType: TriggerType
+  triggerType: TriggerType,
+  command: string
 ): Promise<void> {
   const now = new Date().toISOString();
   await db
     .prepare(
-      `INSERT INTO reminders (repo_full_name, issue_number, user_login, memo, status, trigger_type, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)
+      `INSERT INTO reminders (repo_full_name, issue_number, user_login, memo, status, trigger_type, command, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
        ON CONFLICT (repo_full_name, issue_number, user_login)
-       DO UPDATE SET memo = excluded.memo, trigger_type = excluded.trigger_type, status = 'pending', updated_at = excluded.updated_at`
+       DO UPDATE SET memo = excluded.memo, trigger_type = excluded.trigger_type, command = excluded.command, status = 'pending', updated_at = excluded.updated_at`
     )
-    .bind(repoFullName, issueNumber, userLogin, memo, triggerType, now, now)
+    .bind(repoFullName, issueNumber, userLogin, memo, triggerType, command, now, now)
     .run();
 }
 

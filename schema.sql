@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   memo TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   trigger_type TEXT NOT NULL DEFAULT 'issue',
+  command TEXT NOT NULL DEFAULT '/remind',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (repo_full_name, issue_number, user_login)
