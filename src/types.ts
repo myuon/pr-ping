@@ -19,6 +19,7 @@ export interface Reminder {
   memo: string;
   status: ReminderStatus;
   trigger_type: TriggerType;
+  command: string;
   created_at: string;
   updated_at: string;
 }

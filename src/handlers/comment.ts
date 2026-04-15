@@ -50,7 +50,7 @@ export async function handleIssueComment(
 
     const memo = releaseMatch[1].trim().slice(0, MAX_MEMO_LENGTH);
     try {
-      await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo, "release");
+      await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo, "release", "/release");
       await addReaction(octokit, owner, repo, commentId);
     } catch (error) {
       const message =
@@ -75,7 +75,7 @@ export async function handleIssueComment(
     const triggerType: TriggerType = payload.issue.pull_request ? "pull_request" : "issue";
 
     try {
-      await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo, triggerType);
+      await upsertReminder(env.DB, repoFullName, issueNumber, userLogin, memo, triggerType, "/remind");
       await addReaction(octokit, owner, repo, commentId);
     } catch (error) {
       const message =
