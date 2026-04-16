@@ -79,6 +79,17 @@ export async function deleteReminder(
     .run();
 }
 
+export async function findReminderById(
+  db: D1Database,
+  id: number
+): Promise<Reminder | null> {
+  const row = await db
+    .prepare(`SELECT * FROM reminders WHERE id = ?`)
+    .bind(id)
+    .first<Reminder>();
+  return row ?? null;
+}
+
 export async function markReminderNotified(
   db: D1Database,
   id: number

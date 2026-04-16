@@ -4,7 +4,7 @@ import { handleIssueComment } from "./handlers/comment";
 import { handleIssueClosed } from "./handlers/issue";
 import { handlePullRequestClosed } from "./handlers/pull-request";
 import { handlePush } from "./handlers/release";
-import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting, getReleaseBranch, getUserOrgs } from "./db";
+import { isDeliveryProcessed, markDeliveryProcessed, cleanOldDeliveries, findRemindersByUser, getNotificationSettings, upsertNotificationSetting, getReleaseBranch, getUserOrgs, findReminderById, deleteReminder } from "./db";
 import { createSessionCookie, getSessionUser, clearSessionCookie } from "./session";
 
 type HonoEnv = {
@@ -204,8 +204,14 @@ app.get("/me", async (c) => {
     ? `<span style="color:#1a7f37;background:#dafbe1;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Notified</span>`
     : `<span style="color:#9a6700;background:#fff8c5;padding:0.125rem 0.5rem;border-radius:2rem;font-size:0.75rem">Pending</span>`;
 
+  const deleteQuery = new URLSearchParams();
+  if (showAll) deleteQuery.set("show", "all");
+  if (selectedOrg) deleteQuery.set("org", selectedOrg);
+  const deleteQueryString = deleteQuery.toString();
+  const deleteActionSuffix = deleteQueryString ? `?${deleteQueryString}` : "";
+
   const rows = reminders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center;color:#666;padding:2rem">${showAll ? "No reminders" : "No pending reminders"}</td></tr>`
     : reminders
         .map(
           (r) => `<tr>
@@ -215,6 +221,7 @@ app.get("/me", async (c) => {
             <td><span style="font-size:0.75rem">${escapeHtml(r.command)}</span></td>
             <td>${new Date(r.created_at).toLocaleDateString()}</td>
             <td>${new Date(r.updated_at).toLocaleDateString()}</td>
+            <td><form method="POST" action="/me/reminders/${r.id}/delete${deleteActionSuffix}" onsubmit="return confirm('Delete this reminder?')" style="margin:0"><button type="submit" style="background:none;border:none;color:#cf222e;cursor:pointer;font-size:0.75rem;padding:0;text-decoration:underline">Delete</button></form></td>
           </tr>`
         )
         .join("");
@@ -276,6 +283,7 @@ app.get("/me", async (c) => {
           <th>Command</th>
           <th>Created</th>
           <th>Updated</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -374,6 +382,38 @@ app.post("/me/settings", async (c) => {
   );
 
   return c.redirect(`/me?saved=1${orgParam}`);
+});
+
+app.post("/me/reminders/:id/delete", async (c) => {
+  const user = await getSessionUser(c.req.header("cookie"), c.env.SESSION_SECRET);
+  if (!user) {
+    return c.redirect("/login");
+  }
+
+  const idParam = c.req.param("id");
+  const id = Number(idParam);
+
+  // Preserve query params (e.g. ?show=all&org=foo) when redirecting back to /me
+  const url = new URL(c.req.url);
+  const redirectQuery = new URLSearchParams();
+  const showParam = url.searchParams.get("show");
+  const orgParam = url.searchParams.get("org");
+  if (showParam) redirectQuery.set("show", showParam);
+  if (orgParam) redirectQuery.set("org", orgParam);
+  const redirectSuffix = redirectQuery.toString() ? `?${redirectQuery}` : "";
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return c.redirect(`/me${redirectSuffix}`);
+  }
+
+  const reminder = await findReminderById(c.env.DB, id);
+  if (!reminder || reminder.user_login !== user) {
+    // Either not found or not owned by this user: silently redirect
+    return c.redirect(`/me${redirectSuffix}`);
+  }
+
+  await deleteReminder(c.env.DB, id);
+  return c.redirect(`/me${redirectSuffix}`);
 });
 
 app.get("/", (c) => {
