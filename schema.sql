@@ -8,8 +8,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   trigger_type TEXT NOT NULL DEFAULT 'issue',
   command TEXT NOT NULL DEFAULT '/remind',
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  UNIQUE (repo_full_name, issue_number, user_login)
+  updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS processed_deliveries (

@@ -34,7 +34,7 @@ export async function cleanOldDeliveries(
     .run();
 }
 
-export async function upsertReminder(
+export async function insertReminder(
   db: D1Database,
   repoFullName: string,
   issueNumber: number,
@@ -47,9 +47,7 @@ export async function upsertReminder(
   await db
     .prepare(
       `INSERT INTO reminders (repo_full_name, issue_number, user_login, memo, status, trigger_type, command, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
-       ON CONFLICT (repo_full_name, issue_number, user_login)
-       DO UPDATE SET memo = excluded.memo, trigger_type = excluded.trigger_type, command = excluded.command, status = 'pending', updated_at = excluded.updated_at`
+       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`
     )
     .bind(repoFullName, issueNumber, userLogin, memo, triggerType, command, now, now)
     .run();
