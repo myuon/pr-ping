@@ -58,7 +58,7 @@ export async function handlePush(
 
   // Filter reminders: only fire for users whose configured release branch matches the pushed branch
   for (const reminder of reminders) {
-    const userBranch = await getReleaseBranch(env.DB, reminder.user_login);
+    const userBranch = await getReleaseBranch(env.DB, reminder.user_login, owner);
     const expectedRef = `refs/heads/${userBranch}`;
     if (pushedRef !== expectedRef) continue;
 
